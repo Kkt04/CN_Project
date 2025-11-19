@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Network Configuration Auditor - OpenWRT Router Management" />
+    <title>Network Configuration Auditor</title>
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+      
+      .fade-in {
+        animation: fadeIn 0.3s ease-in;
+      }
+      
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      
+      .spin {
+        animation: spin 1s linear infinite;
+      }
+      
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>
+      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 20px; color: #666;">
+        <p>You need to enable JavaScript to run this app.</p>
+      </div>
+    </noscript>
+    
+    <div id="root"></div>
+    
+    <!-- React and React-DOM from CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- App script -->
+    <script type="module" src="%PUBLIC_URL%/index.js"></script>
+  </body>
+</html>
