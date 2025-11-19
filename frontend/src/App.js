@@ -563,7 +563,7 @@ ${data.config.firewall || 'N/A'}
             </svg>
             <h1 className="text-4xl md:text-5xl font-bold text-gray-800">Network Configuration Auditor</h1>
           </div>
-          <p className="text-gray-600 text-lg">Monitor and manage your OpenWRT virtual router</p>
+          <p className="text-gray-600 text-lg">Monitor and manage your virtual router</p>
         </div>
 
         {/* Connection Panel */}
