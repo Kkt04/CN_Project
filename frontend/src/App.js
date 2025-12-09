@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Activity, Wifi, Shield, Clock, Server, Cpu, HardDrive, Thermometer, Upload, Download, Signal } from 'lucide-react';
 
-// API Configuration
+// Mock API for demo
 const API_BASE = 'http://localhost:3001/api';
 
 const NetworkConfigAuditor = () => {
-  // ==================== STATE ====================
   const [connected, setConnected] = useState(false);
   const [routerInfo, setRouterInfo] = useState(null);
   const [devices, setDevices] = useState([]);
@@ -17,11 +17,38 @@ const NetworkConfigAuditor = () => {
     password: ''
   });
   const [loading, setLoading] = useState(false);
-  const [systemStats, setSystemStats] = useState(null);
+  const [systemStats, setSystemStats] = useState({
+    cpu: 45,
+    memory: 62,
+    storage: 38,
+    temperature: 52,
+    bandwidth: { upload: 2.4, download: 8.7 },
+    latency: 12,
+    packets: { sent: 15420, received: 18650 }
+  });
   const [connectionId, setConnectionId] = useState(null);
   const [error, setError] = useState(null);
+  const [securityScore, setSecurityScore] = useState(85);
 
-  // ==================== UTILITY FUNCTIONS ====================
+  // Demo data
+  useEffect(() => {
+    if (connected) {
+      setDevices([
+        { id: 1, name: 'iPhone 13', ip: '192.168.1.101', mac: '00:1A:2B:3C:4D:5E', type: 'phone', status: 'active', blocked: false, network: 'HomeWiFi-5G', router: 'OpenWRT', gateway: '192.168.1.1', connectedTime: '2h 34m', bandwidth: '1.2 MB/s', signal: 95 },
+        { id: 2, name: 'MacBook Pro', ip: '192.168.1.102', mac: '00:1A:2B:3C:4D:5F', type: 'laptop', status: 'active', blocked: false, network: 'HomeWiFi-5G', router: 'OpenWRT', gateway: '192.168.1.1', connectedTime: '5h 12m', bandwidth: '3.5 MB/s', signal: 88 },
+        { id: 3, name: 'Smart TV', ip: '192.168.1.103', mac: '00:1A:2B:3C:4D:60', type: 'tv', status: 'active', blocked: false, network: 'HomeWiFi-2.4G', router: 'OpenWRT', gateway: '192.168.1.1', connectedTime: '12h 45m', bandwidth: '0.8 MB/s', signal: 72 },
+        { id: 4, name: 'iPad Air', ip: '192.168.1.104', mac: '00:1A:2B:3C:4D:61', type: 'tablet', status: 'active', blocked: true, network: 'HomeWiFi-5G', router: 'OpenWRT', gateway: '192.168.1.1', connectedTime: '0m', bandwidth: '0 MB/s', signal: 0 }
+      ]);
+
+      setAuditLogs([
+        { id: 1, type: 'success', message: '✅ Connected to router at 192.168.1.254', timestamp: '14:32:15' },
+        { id: 2, type: 'info', message: '🔍 Starting security audit...', timestamp: '14:32:20' },
+        { id: 3, type: 'success', message: '[SSH Security] SSH is configured', timestamp: '14:32:22' },
+        { id: 4, type: 'success', message: '[Firewall] Firewall status checked', timestamp: '14:32:23' },
+        { id: 5, type: 'warning', message: '🚫 Device iPad Air (192.168.1.104) blocked', timestamp: '14:35:10' }
+      ]);
+    }
+  }, [connected]);
 
   const addAuditLog = useCallback((type, message) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -39,257 +66,103 @@ const NetworkConfigAuditor = () => {
     setTimeout(() => setError(null), 5000);
   }, [addAuditLog]);
 
-  // ==================== ROUTER CONNECTION ====================
-
   const connectToRouter = useCallback(async () => {
-    if (!connectionConfig.host || !connectionConfig.username || !connectionConfig.password) {
-      showError('Please fill in all connection fields');
+    if (!connectionConfig.password) {
+      showError('Please enter password');
       return;
     }
 
     setLoading(true);
     setError(null);
 
-    try {
-      const response = await fetch(`${API_BASE}/router/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(connectionConfig)
+    // Demo connection
+    setTimeout(() => {
+      setConnected(true);
+      setConnectionId('demo-123');
+      setRouterInfo({
+        hostname: 'OpenWRT-Router',
+        version: '23.05.2',
+        model: 'Virtual Router',
+        uptime: '15 days, 7:23:45'
       });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setConnected(true);
-        setConnectionId(data.connectionId);
-        setRouterInfo(data.routerInfo);
-        addAuditLog('success', `✅ Connected to router at ${connectionConfig.host}`);
-
-        await fetchStats(data.connectionId);
-        await fetchDevices(data.connectionId);
-      } else {
-        showError(data.error || 'Failed to connect to router');
-      }
-    } catch (error) {
-      showError(`Connection error: ${error.message}`);
-    }
-
-    setLoading(false);
+      addAuditLog('success', `✅ Connected to router at ${connectionConfig.host}`);
+      setLoading(false);
+    }, 1500);
   }, [connectionConfig, showError, addAuditLog]);
 
-  const disconnectRouter = useCallback(async () => {
-    if (!connectionId) return;
-
-    setLoading(true);
-
-    try {
-      await fetch(`${API_BASE}/router/disconnect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId })
-      });
-
-      addAuditLog('info', '❌ Disconnected from router');
-    } catch (error) {
-      console.error('Disconnect error:', error);
-    }
-
+  const disconnectRouter = useCallback(() => {
     setConnected(false);
     setRouterInfo(null);
     setDevices([]);
-    setSystemStats(null);
     setConnectionId(null);
-    setLoading(false);
-  }, [connectionId, addAuditLog]);
+    addAuditLog('info', '❌ Disconnected from router');
+  }, [addAuditLog]);
 
-  // ==================== DATA FETCHING ====================
-
-  const fetchStats = async (connId) => {
-    try {
-      const response = await fetch(`${API_BASE}/router/${connId}/stats`);
-      const data = await response.json();
-
-      if (data.success) {
-        setSystemStats(data.stats);
-      }
-    } catch (error) {
-      console.error('Failed to fetch stats:', error);
-    }
-  };
-
-  const fetchDevices = async (connId) => {
-    try {
-      const response = await fetch(`${API_BASE}/router/${connId}/devices`);
-      const data = await response.json();
-
-      if (data.success) {
-        setDevices(data.devices);
-      }
-    } catch (error) {
-      console.error('Failed to fetch devices:', error);
-    }
-  };
-
-  const fetchRouterConfig = useCallback(async () => {
-    if (!connectionId) return;
-
-    setLoading(true);
-
-    try {
-      const response = await fetch(`${API_BASE}/router/${connectionId}/config`);
-      const data = await response.json();
-
-      if (data.success) {
-        addAuditLog('success', '✅ Configuration fetched successfully');
-
-        const configText = `
-========== NETWORK CONFIG ==========
-${data.config.network || 'N/A'}
-
-========== DHCP CONFIG ==========
-${data.config.dhcp || 'N/A'}
-
-========== FIREWALL CONFIG ==========
-${data.config.firewall || 'N/A'}
-        `;
-
-        alert(configText);
-      } else {
-        showError(data.error || 'Failed to fetch configuration');
-      }
-    } catch (error) {
-      showError(`Failed to fetch config: ${error.message}`);
-    }
-
-    setLoading(false);
-  }, [connectionId, addAuditLog, showError]);
-
-  const runSecurityAudit = useCallback(async () => {
-    if (!connectionId) return;
-
-    setLoading(true);
-
-    try {
-      addAuditLog('info', '🔍 Starting security audit...');
-
-      const response = await fetch(`${API_BASE}/router/${connectionId}/audit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        data.auditResults.forEach(result => {
-          const logType = result.status === 'pass' ? 'success' :
-            result.status === 'warning' ? 'warning' : 'error';
-          addAuditLog(logType, `[${result.category}] ${result.message}`);
-        });
-
-        addAuditLog('success', '✅ Security audit completed');
-      } else {
-        showError(data.error || 'Audit failed');
-      }
-    } catch (error) {
-      showError(`Audit error: ${error.message}`);
-    }
-
-    setLoading(false);
-  }, [connectionId, addAuditLog, showError]);
-
-  // ==================== DEVICE MANAGEMENT ====================
-
-  const blockDevice = useCallback(async (deviceId) => {
-    if (!connectionId) return;
-
+  const blockDevice = useCallback((deviceId) => {
+    setDevices(prev => prev.map(d =>
+      d.id === deviceId ? { ...d, blocked: !d.blocked, connectedTime: d.blocked ? '0m' : d.connectedTime, bandwidth: d.blocked ? '0 MB/s' : d.bandwidth, signal: d.blocked ? 0 : d.signal } : d
+    ));
     const device = devices.find(d => d.id === deviceId);
-    if (!device) return;
+    const action = device.blocked ? 'unblocked' : 'blocked';
+    addAuditLog('warning', `🚫 Device ${device.name} (${device.ip}) ${action}`);
+  }, [devices, addAuditLog]);
 
-    setLoading(true);
-
-    try {
-      const response = await fetch(
-        `${API_BASE}/router/${connectionId}/device/${device.mac}/block`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ block: !device.blocked })
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        setDevices(prev => prev.map(d =>
-          d.id === deviceId ? { ...d, blocked: !d.blocked } : d
-        ));
-
-        const action = device.blocked ? 'unblocked' : 'blocked';
-        addAuditLog('warning', `🚫 Device ${device.name} (${device.ip}) ${action}`);
-      } else {
-        showError(data.error || 'Failed to block/unblock device');
-      }
-    } catch (error) {
-      showError(`Block error: ${error.message}`);
+  const getDeviceIcon = (type) => {
+    switch(type) {
+      case 'phone': return '📱';
+      case 'laptop': return '💻';
+      case 'tv': return '📺';
+      case 'tablet': return '📱';
+      default: return '🖥️';
     }
-
-    setLoading(false);
-  }, [connectionId, devices, addAuditLog, showError]);
-
-  // ==================== INPUT HANDLER ====================
-
-  const handleInputChange = (field) => (e) => {
-    setConnectionConfig(prev => ({ ...prev, [field]: e.target.value }));
   };
 
-  // ==================== AUTO-REFRESH ====================
+  const getSignalColor = (signal) => {
+    if (signal >= 80) return 'text-green-500';
+    if (signal >= 50) return 'text-yellow-500';
+    return 'text-red-500';
+  };
 
-  useEffect(() => {
-    if (connected && connectionId) {
-      const interval = setInterval(() => {
-        fetchStats(connectionId);
-        fetchDevices(connectionId);
-      }, 5000);
-
-      return () => clearInterval(interval);
-    }
-  }, [connected, connectionId]);
-
-  // ==================== MAIN RENDER ====================
+  const getSignalBars = (signal) => {
+    const bars = Math.ceil((signal / 100) * 4);
+    return '█'.repeat(bars) + '░'.repeat(4 - bars);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-100 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <svg className="w-10 h-10 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M20.5 6c-1.93 0-3.5 1.57-3.5 3.5 0 .54.13 1.05.36 1.5H7.14c.23-.45.36-.96.36-1.5C7.5 7.57 5.93 6 4 6 2.07 6 .5 7.57.5 9.5S2.07 13 4 13c1.5 0 2.79-.84 3.46-2.07h9.08c.67 1.23 1.96 2.07 3.46 2.07 1.93 0 3.5-1.57 3.5-3.5S22.43 6 20.5 6zm0 5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM4 11c-.83 0-1.5-.67-1.5-1.5S3.17 8 4 8s1.5.67 1.5 1.5S4.83 11 4 11z" />
-            </svg>
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-800">Network Configuration Auditor</h1>
-          </div>
-          <p className="text-gray-600 text-lg">Monitor and manage your virtual router</p>
-        </div>
-
-        {/* Connection Panel */}
-        <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
-          <div className="flex items-center justify-between mb-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-sm border-b border-blue-500/30 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z" />
-              </svg>
-              <h2 className="text-3xl font-bold text-gray-800">Router Connection</h2>
+              <div className="p-2 bg-blue-500/20 rounded-lg">
+                <Wifi className="w-6 h-6 text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-xl md:text-2xl font-bold text-white">Network Configuration Auditor</h1>
+                <p className="text-xs text-blue-300">Real-time Router Management Dashboard</p>
+              </div>
             </div>
             {connected && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-green-100 rounded-full">
-                <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-green-700 text-sm font-semibold">Connected</span>
+              <div className="flex items-center gap-2 px-4 py-2 bg-green-500/20 rounded-lg border border-green-500/30">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-green-300 text-sm font-semibold">Connected</span>
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-6">
+        {/* Connection Panel */}
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-blue-500/30 shadow-xl p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <Server className="w-6 h-6 text-blue-400" />
+            <h2 className="text-xl font-bold text-white">Router Connection</h2>
+          </div>
 
           {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            <div className="mb-4 p-4 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300">
               {error}
             </div>
           )}
@@ -298,50 +171,46 @@ ${data.config.firewall || 'N/A'}
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Host IP Address</label>
+                  <label className="block text-sm font-semibold text-blue-300 mb-2">Host IP</label>
                   <input
                     type="text"
                     value={connectionConfig.host}
-                    onChange={handleInputChange('host')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    onChange={(e) => setConnectionConfig(prev => ({ ...prev, host: e.target.value }))}
+                    className="w-full px-4 py-2 bg-slate-700/50 border border-blue-500/30 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     placeholder="192.168.1.254"
-                    disabled={loading}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">SSH Port</label>
+                  <label className="block text-sm font-semibold text-blue-300 mb-2">SSH Port</label>
                   <input
                     type="text"
                     value={connectionConfig.port}
-                    onChange={handleInputChange('port')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    onChange={(e) => setConnectionConfig(prev => ({ ...prev, port: e.target.value }))}
+                    className="w-full px-4 py-2 bg-slate-700/50 border border-blue-500/30 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     placeholder="22"
-                    disabled={loading}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+                  <label className="block text-sm font-semibold text-blue-300 mb-2">Username</label>
                   <input
                     type="text"
                     value={connectionConfig.username}
-                    onChange={handleInputChange('username')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    onChange={(e) => setConnectionConfig(prev => ({ ...prev, username: e.target.value }))}
+                    className="w-full px-4 py-2 bg-slate-700/50 border border-blue-500/30 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     placeholder="root"
-                    disabled={loading}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                  <label className="block text-sm font-semibold text-blue-300 mb-2">Password</label>
                   <input
                     type="password"
                     value={connectionConfig.password}
-                    onChange={handleInputChange('password')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    onChange={(e) => setConnectionConfig(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full px-4 py-2 bg-slate-700/50 border border-blue-500/30 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     placeholder="••••••••"
-                    disabled={loading}
                   />
                 </div>
               </div>
@@ -349,20 +218,16 @@ ${data.config.firewall || 'N/A'}
               <button
                 onClick={connectToRouter}
                 disabled={loading}
-                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
-                    <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                     Connecting...
                   </>
                 ) : (
                   <>
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z" />
-                    </svg>
+                    <Wifi className="w-5 h-5" />
                     Connect to Router
                   </>
                 )}
@@ -370,69 +235,160 @@ ${data.config.firewall || 'N/A'}
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+              {/* Router Info Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-slate-700/30 rounded-lg border border-blue-500/20">
                 <div>
-                  <p className="text-xs text-gray-600 font-semibold uppercase">Model</p>
-                  <p className="font-semibold text-gray-800 text-sm">{routerInfo?.model}</p>
+                  <p className="text-xs text-blue-300 font-semibold uppercase mb-1">Model</p>
+                  <p className="font-semibold text-white text-sm">{routerInfo?.model}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-600 font-semibold uppercase">Version</p>
-                  <p className="font-semibold text-gray-800 text-sm">{routerInfo?.version}</p>
+                  <p className="text-xs text-blue-300 font-semibold uppercase mb-1">Version</p>
+                  <p className="font-semibold text-white text-sm">{routerInfo?.version}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-600 font-semibold uppercase">Hostname</p>
-                  <p className="font-semibold text-gray-800 text-sm">{routerInfo?.hostname}</p>
+                  <p className="text-xs text-blue-300 font-semibold uppercase mb-1">Hostname</p>
+                  <p className="font-semibold text-white text-sm">{routerInfo?.hostname}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-600 font-semibold uppercase">Uptime</p>
-                  <p className="font-semibold text-gray-800 text-xs">{routerInfo?.uptime?.split(',')[0]}</p>
+                  <p className="text-xs text-blue-300 font-semibold uppercase mb-1">Uptime</p>
+                  <p className="font-semibold text-white text-xs">{routerInfo?.uptime?.split(',')[0]}</p>
                 </div>
               </div>
 
-              {systemStats && (
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-                    <p className="text-xs text-gray-600 font-semibold uppercase mb-2">CPU Usage</p>
-                    <div className="flex items-end gap-2">
-                      <p className="text-3xl font-bold text-blue-600">{Math.round(systemStats.cpu)}</p>
-                      <p className="text-gray-600 mb-1">%</p>
-                    </div>
+              {/* System Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="p-4 bg-gradient-to-br from-blue-500/20 to-blue-600/20 rounded-lg border border-blue-500/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Cpu className="w-4 h-4 text-blue-400" />
+                    <p className="text-xs text-blue-300 font-semibold uppercase">CPU</p>
                   </div>
-                  <div className="p-4 bg-purple-50 rounded-lg border-l-4 border-purple-500">
-                    <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Memory</p>
-                    <div className="flex items-end gap-2">
-                      <p className="text-3xl font-bold text-purple-600">{Math.round(systemStats.memory)}</p>
-                      <p className="text-gray-600 mb-1">%</p>
-                    </div>
+                  <div className="flex items-end gap-1">
+                    <p className="text-2xl font-bold text-white">{systemStats.cpu}</p>
+                    <p className="text-blue-300 mb-0.5 text-sm">%</p>
                   </div>
-                  <div className="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
-                    <p className="text-xs text-gray-600 font-semibold uppercase mb-2">Storage</p>
-                    <div className="flex items-end gap-2">
-                      <p className="text-3xl font-bold text-green-600">{Math.round(systemStats.storage)}</p>
-                      <p className="text-gray-600 mb-1">%</p>
+                  <div className="mt-2 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-blue-400 to-blue-500 rounded-full transition-all duration-300" style={{ width: `${systemStats.cpu}%` }}></div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-gradient-to-br from-purple-500/20 to-purple-600/20 rounded-lg border border-purple-500/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="w-4 h-4 text-purple-400" />
+                    <p className="text-xs text-purple-300 font-semibold uppercase">Memory</p>
+                  </div>
+                  <div className="flex items-end gap-1">
+                    <p className="text-2xl font-bold text-white">{systemStats.memory}</p>
+                    <p className="text-purple-300 mb-0.5 text-sm">%</p>
+                  </div>
+                  <div className="mt-2 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-purple-400 to-purple-500 rounded-full transition-all duration-300" style={{ width: `${systemStats.memory}%` }}></div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-gradient-to-br from-green-500/20 to-green-600/20 rounded-lg border border-green-500/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <HardDrive className="w-4 h-4 text-green-400" />
+                    <p className="text-xs text-green-300 font-semibold uppercase">Storage</p>
+                  </div>
+                  <div className="flex items-end gap-1">
+                    <p className="text-2xl font-bold text-white">{systemStats.storage}</p>
+                    <p className="text-green-300 mb-0.5 text-sm">%</p>
+                  </div>
+                  <div className="mt-2 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all duration-300" style={{ width: `${systemStats.storage}%` }}></div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-gradient-to-br from-orange-500/20 to-orange-600/20 rounded-lg border border-orange-500/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Thermometer className="w-4 h-4 text-orange-400" />
+                    <p className="text-xs text-orange-300 font-semibold uppercase">Temp</p>
+                  </div>
+                  <div className="flex items-end gap-1">
+                    <p className="text-2xl font-bold text-white">{systemStats.temperature}</p>
+                    <p className="text-orange-300 mb-0.5 text-sm">°C</p>
+                  </div>
+                  <div className="mt-2 h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-orange-400 to-orange-500 rounded-full transition-all duration-300" style={{ width: `${(systemStats.temperature / 100) * 100}%` }}></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Network Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-4 bg-slate-700/30 rounded-lg border border-blue-500/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Upload className="w-4 h-4 text-blue-400" />
+                      <p className="text-xs text-blue-300 font-semibold">Upload</p>
+                    </div>
+                    <p className="text-lg font-bold text-white">{systemStats.bandwidth.upload} MB/s</p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Download className="w-4 h-4 text-green-400" />
+                      <p className="text-xs text-green-300 font-semibold">Download</p>
+                    </div>
+                    <p className="text-lg font-bold text-white">{systemStats.bandwidth.download} MB/s</p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-700/30 rounded-lg border border-blue-500/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-blue-300 font-semibold mb-1">Latency</p>
+                      <p className="text-2xl font-bold text-white">{systemStats.latency} <span className="text-sm text-blue-300">ms</span></p>
+                    </div>
+                    <Activity className="w-8 h-8 text-blue-400" />
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-700/30 rounded-lg border border-blue-500/20">
+                  <p className="text-xs text-blue-300 font-semibold mb-2">Packets</p>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Sent:</span>
+                      <span className="text-white font-semibold">{systemStats.packets.sent.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Received:</span>
+                      <span className="text-white font-semibold">{systemStats.packets.received.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
 
+              {/* Security Score */}
+              <div className="p-4 bg-gradient-to-r from-green-500/20 to-blue-500/20 rounded-lg border border-green-500/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Shield className="w-6 h-6 text-green-400" />
+                    <div>
+                      <p className="text-sm text-green-300 font-semibold">Security Score</p>
+                      <p className="text-xs text-gray-400">Overall system security rating</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-3xl font-bold text-white">{securityScore}</p>
+                    <p className="text-xs text-green-300">/ 100</p>
+                  </div>
+                </div>
+                <div className="mt-3 h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full transition-all duration-500" style={{ width: `${securityScore}%` }}></div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
               <div className="flex gap-3 flex-wrap">
-                <button
-                  onClick={fetchRouterConfig}
-                  disabled={loading}
-                  className="flex-1 min-w-[140px] bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
+                <button className="flex-1 min-w-[140px] bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-200">
                   📋 Fetch Config
                 </button>
-                <button
-                  onClick={runSecurityAudit}
-                  disabled={loading}
-                  className="flex-1 min-w-[140px] bg-orange-600 text-white py-3 rounded-lg font-semibold hover:bg-orange-700 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
+                <button className="flex-1 min-w-[140px] bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-lg font-semibold hover:from-orange-600 hover:to-orange-700 transition-all duration-200">
                   🔍 Security Audit
                 </button>
                 <button
                   onClick={disconnectRouter}
-                  className="flex-1 min-w-[140px] bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-all duration-200"
+                  className="flex-1 min-w-[140px] bg-gradient-to-r from-red-500 to-red-600 text-white py-3 rounded-lg font-semibold hover:from-red-600 hover:to-red-700 transition-all duration-200"
                 >
                   🔌 Disconnect
                 </button>
@@ -441,34 +397,30 @@ ${data.config.firewall || 'N/A'}
           )}
         </div>
 
-        {/* Tabs and Content */}
+        {/* Tabs */}
         {connected && (
           <>
-            <div className="mb-6 flex gap-4 border-b-2 border-gray-300">
+            <div className="flex gap-4 border-b-2 border-blue-500/30">
               <button
                 onClick={() => setActiveTab('dashboard')}
                 className={`px-6 py-3 font-semibold transition-all duration-200 flex items-center gap-2 ${
                   activeTab === 'dashboard'
-                    ? 'text-blue-600 border-b-4 border-blue-600 -mb-[2px]'
-                    : 'text-gray-600 hover:text-gray-800'
+                    ? 'text-blue-400 border-b-4 border-blue-400 -mb-[2px]'
+                    : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                </svg>
+                <Activity className="w-5 h-5" />
                 Devices ({devices.length})
               </button>
               <button
                 onClick={() => setActiveTab('logs')}
                 className={`px-6 py-3 font-semibold transition-all duration-200 flex items-center gap-2 ${
                   activeTab === 'logs'
-                    ? 'text-blue-600 border-b-4 border-blue-600 -mb-[2px]'
-                    : 'text-gray-600 hover:text-gray-800'
+                    ? 'text-blue-400 border-b-4 border-blue-400 -mb-[2px]'
+                    : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-                </svg>
+                <Clock className="w-5 h-5" />
                 Audit Logs ({auditLogs.length})
               </button>
             </div>
@@ -476,78 +428,105 @@ ${data.config.firewall || 'N/A'}
             {/* Tab Content */}
             <div>
               {activeTab === 'dashboard' && (
-                <div className="bg-white rounded-lg shadow-lg p-8">
+                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-blue-500/30 shadow-xl p-6">
                   <div className="flex items-center gap-3 mb-6">
-                    <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                    </svg>
-                    <h2 className="text-2xl font-bold text-gray-800">Connected Devices</h2>
-                    <span className="ml-auto bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                    <Wifi className="w-6 h-6 text-blue-400" />
+                    <h2 className="text-xl font-bold text-white">Connected Devices</h2>
+                    <span className="ml-auto bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full text-sm font-semibold border border-blue-500/30">
                       {devices.length} device{devices.length !== 1 ? 's' : ''}
                     </span>
                   </div>
 
                   <div className="space-y-3">
-                    {devices.length === 0 ? (
-                      <div className="text-center py-12 text-gray-500">
-                        <p className="text-lg">No devices connected yet</p>
-                        <p className="text-sm text-gray-400">Connected devices will appear here</p>
-                      </div>
-                    ) : (
-                      devices.map(device => (
-                        <div
-                          key={device.id}
-                          className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:shadow transition-all duration-200"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className={`w-3 h-3 rounded-full ${device.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                            <div>
-                              <p className="font-semibold text-gray-800">{device.name}</p>
-                              <p className="text-sm text-gray-600">{device.ip} • {device.mac}</p>
+                    {devices.map(device => (
+                      <div
+                        key={device.id}
+                        className="p-4 bg-slate-700/30 border border-blue-500/20 rounded-lg hover:bg-slate-700/50 hover:border-blue-500/40 transition-all duration-200"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-4 flex-1">
+                            <div className="text-3xl">{getDeviceIcon(device.type)}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <p className="font-semibold text-white text-lg">{device.name}</p>
+                                {device.blocked && (
+                                  <span className="px-2 py-1 bg-red-500/20 text-red-300 text-xs rounded-full font-semibold border border-red-500/30">
+                                    🚫 Blocked
+                                  </span>
+                                )}
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-400">IP:</span>
+                                  <span className="text-blue-300 font-mono">{device.ip}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-400">MAC:</span>
+                                  <span className="text-blue-300 font-mono text-xs">{device.mac}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-400">Network:</span>
+                                  <span className="text-white font-semibold">{device.network}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-400">Router:</span>
+                                  <span className="text-white">{device.router}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-400">Gateway:</span>
+                                  <span className="text-blue-300 font-mono">{device.gateway}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-400">Connected:</span>
+                                  <span className="text-green-300">{device.connectedTime}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-400">Bandwidth:</span>
+                                  <span className="text-purple-300 font-semibold">{device.bandwidth}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Signal className="w-4 h-4 text-gray-400" />
+                                  <span className={`font-mono font-bold ${getSignalColor(device.signal)}`}>
+                                    {getSignalBars(device.signal)} {device.signal}%
+                                  </span>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            {device.blocked && (
-                              <span className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded-full font-semibold">
-                                🚫 Blocked
-                              </span>
-                            )}
-                            <button
-                              onClick={() => blockDevice(device.id)}
-                              disabled={loading}
-                              className={`px-4 py-2 rounded-lg font-semibold transition-all duration-200 disabled:cursor-not-allowed ${
-                                device.blocked
-                                  ? 'bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-400'
-                                  : 'bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-400'
-                              }`}
-                            >
-                              {device.blocked ? '✅ Unblock' : '❌ Block'}
-                            </button>
-                          </div>
+                          
+                          <button
+                            onClick={() => blockDevice(device.id)}
+                            className={`px-6 py-2 rounded-lg font-semibold transition-all duration-200 whitespace-nowrap ${
+                              device.blocked
+                                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700'
+                                : 'bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700'
+                            }`}
+                          >
+                            {device.blocked ? '✅ Unblock' : '❌ Block'}
+                          </button>
                         </div>
-                      ))
-                    )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
-              
+
               {activeTab === 'logs' && (
-                <div className="bg-white rounded-lg shadow-lg p-8">
+                <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-blue-500/30 shadow-xl p-6">
                   <div className="flex items-center gap-3 mb-6">
-                    <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-                    </svg>
-                    <h2 className="text-2xl font-bold text-gray-800">Audit Logs</h2>
+                    <Clock className="w-6 h-6 text-blue-400" />
+                    <h2 className="text-xl font-bold text-white">Live Audit Logs</h2>
                   </div>
 
-                  <div className="bg-gray-900 rounded-lg p-4 h-96 overflow-y-auto font-mono text-sm space-y-1">
+                  <div className="bg-slate-950/80 rounded-lg p-4 h-96 overflow-y-auto font-mono text-sm space-y-2 border border-blue-500/20">
                     {auditLogs.length === 0 ? (
                       <p className="text-gray-500 text-center py-40">No logs yet. Connect to start monitoring.</p>
                     ) : (
                       auditLogs.map(log => (
-                        <div key={log.id} className="flex items-start gap-3 text-xs">
-                          <span className="text-gray-500 min-w-fit">[{log.timestamp}]</span>
-                          <span className={`${
+                        <div key={log.id} className="flex items-start gap-3 p-2 hover:bg-slate-800/50 rounded transition-colors">
+                          <span className="text-gray-500 min-w-fit text-xs">[{log.timestamp}]</span>
+                          <span className={`text-xs leading-relaxed ${
                             log.type === 'success' ? 'text-green-400' :
                             log.type === 'warning' ? 'text-yellow-400' :
                             log.type === 'error' ? 'text-red-400' :
@@ -565,9 +544,134 @@ ${data.config.firewall || 'N/A'}
           </>
         )}
 
-        {/* Footer */}
-        <div className="mt-12 text-center text-gray-500 text-sm">
-          <p>Network Configuration Auditor v1.0.0 • OpenWRT Router Management</p>
+        {/* Example Features Section */}
+        {!connected && (
+          <div className="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-blue-500/30 shadow-xl p-8">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-white mb-2">What You'll Get</h2>
+              <p className="text-gray-400">Comprehensive router management and monitoring features</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-6 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-lg border border-blue-500/20">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-blue-500/20 rounded-lg">
+                    <Activity className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white">Real-time Monitoring</h3>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-400 mt-1">•</span>
+                    <span>CPU, Memory, Storage, Temperature with animated graphs</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-400 mt-1">•</span>
+                    <span>Bandwidth tracking (Upload/Download)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-400 mt-1">•</span>
+                    <span>Network latency and packet statistics</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="p-6 bg-gradient-to-br from-green-500/10 to-blue-500/10 rounded-lg border border-green-500/20">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-green-500/20 rounded-lg">
+                    <Wifi className="w-6 h-6 text-green-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white">Device Management</h3>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-400 mt-1">•</span>
+                    <span>Device type icons (📱💻📺) and detailed info</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-400 mt-1">•</span>
+                    <span>Network details, bandwidth usage per device</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-400 mt-1">•</span>
+                    <span>Signal strength with color indicators</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-400 mt-1">•</span>
+                    <span>One-click block/unblock functionality</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="p-6 bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-lg border border-orange-500/20">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-orange-500/20 rounded-lg">
+                    <Shield className="w-6 h-6 text-orange-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white">Security Audit</h3>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <span className="text-orange-400 mt-1">•</span>
+                    <span>Comprehensive security scoring system</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-orange-400 mt-1">•</span>
+                    <span>SSH, Firewall, and DHCP security checks</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-orange-400 mt-1">•</span>
+                    <span>Real-time vulnerability detection</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="p-6 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-lg border border-purple-500/20">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-purple-500/20 rounded-lg">
+                    <Clock className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white">Live Audit Logs</h3>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-400 mt-1">•</span>
+                    <span>Color-coded log messages for easy reading</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-400 mt-1">•</span>
+                    <span>Real-time event tracking and timestamps</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-400 mt-1">•</span>
+                    <span>Complete audit trail of all activities</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="mt-12 pb-8">
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
+          <div className="bg-gradient-to-r from-slate-800/50 to-blue-900/50 backdrop-blur-sm rounded-xl border border-blue-500/30 p-6 text-center">
+            <p className="text-gray-300 text-sm mb-2">Presents you</p>
+            <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-1">
+              Network Configuration Auditor
+            </h3>
+            <p className="text-gray-400 text-sm">
+              Created by <span className="text-blue-400 font-semibold">Kalash</span> and <span className="text-purple-400 font-semibold">Manasa</span>
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-4 text-xs text-gray-500">
+              <span>v1.0.0</span>
+              <span>•</span>
+              <span>OpenWRT Router Management</span>
+              <span>•</span>
+              <span>© 2024</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
